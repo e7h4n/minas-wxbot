@@ -1,0 +1,7 @@
+spring.datasource:
+  url:
+  username:
+  initSQL: "SET NAMES 'utf8mb4'"
+
+wxContext:
+  file:
