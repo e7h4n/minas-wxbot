@@ -5,3 +5,9 @@ spring.datasource:
 
 wxContext:
   file:
+
+job.contactAdd:
+  enabled: false
+  targetGroupName:
+  reason:
+  cacheFile:

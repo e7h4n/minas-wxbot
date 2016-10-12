@@ -7,8 +7,6 @@ import com.lostjs.wx4j.context.QRCodeWxContextSource;
 import com.lostjs.wx4j.context.WxContext;
 import com.lostjs.wx4j.transporter.BasicWxTransporter;
 import com.lostjs.wx4j.transporter.WxTransporter;
-import com.lostjs.wx4j.utils.HttpUtil;
-import org.apache.http.client.CookieStore;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -40,23 +38,17 @@ public class WxClientConfiguration {
         try {
             client.statusNotify();
         } catch (RuntimeException e) {
-            wxTransporter.getWxContext().clear();
+            wxTransporter.getContext().clear();
 
-            boolean success = new QRCodeWxContextSource().initWxWebContext(wxTransporter.getWxContext());
+            boolean success = new QRCodeWxContextSource(wxTransporter).initWxWebContext();
 
             if (!success) {
                 throw new RuntimeException("can't initialize wx context");
             }
             client.statusNotify();
         }
+
         client.startEventLoop();
         return client;
-    }
-
-    @Bean
-    public HttpUtil httpUtil(CookieStore cookieStore) {
-        HttpUtil httpUtil = new HttpUtil();
-        httpUtil.setCookieStore(cookieStore);
-        return httpUtil;
     }
 }
