@@ -77,34 +77,39 @@ public class ContactAddJob implements CommandLineRunner {
                 LOG.info("add friend, nickName={}", nickName);
 
                 boolean success = false;
-                try {
-                    success = wxClient.addContact(g.getUserName(), reason);
-                } catch (InvalidResponseException e) {
-                    if (e.getRet() == 1205) {
-                        int sleepMinute = fib1 + fib2;
-                        LOG.info("add friend too fast, sleep {} minutes to retry", sleepMinute);
+                while (true) {
+                    try {
+                        success = wxClient.addContact(g.getUserName(), reason);
+                    } catch (InvalidResponseException e) {
+                        if (e.getRet() == 1205) {
+                            int sleepMinute = fib1 + fib2;
+                            LOG.info("add friend too fast, sleep {} minutes to retry", sleepMinute);
+                            try {
+                                Thread.sleep(TimeUnit.MINUTES.toMillis(sleepMinute));
+                            } catch (InterruptedException e1) {
+                                throw new RuntimeException(e1);
+                            }
+
+                            fib1 = fib2;
+                            fib2 = sleepMinute;
+                            continue;
+                        } else {
+                            throw new RuntimeException(e);
+                        }
+                    }
+
+                    if (success) {
+                        fib1 = 0;
+                        fib2 = 1;
+                        friendRequests.add(nickName);
+
                         try {
-                            Thread.sleep(TimeUnit.MINUTES.toMillis(sleepMinute));
-                        } catch (InterruptedException e1) {
-                            throw new RuntimeException(e1);
+                            FileUtils.writeStringToFile(file, objectMapper.writeValueAsString(friendRequests));
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
                         }
 
-                        fib1 = fib2;
-                        fib2 = sleepMinute;
-                    } else {
-                        throw new RuntimeException(e);
-                    }
-                }
-
-                if (success) {
-                    fib1 = 0;
-                    fib2 = 1;
-                    friendRequests.add(nickName);
-
-                    try {
-                        FileUtils.writeStringToFile(file, objectMapper.writeValueAsString(friendRequests));
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
+                        break;
                     }
                 }
 
