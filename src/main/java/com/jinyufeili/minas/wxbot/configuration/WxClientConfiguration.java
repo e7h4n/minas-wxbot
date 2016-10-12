@@ -5,11 +5,14 @@ import com.lostjs.wx4j.client.WxClient;
 import com.lostjs.wx4j.context.FileWxContext;
 import com.lostjs.wx4j.context.QRCodeWxContextSource;
 import com.lostjs.wx4j.context.WxContext;
+import com.lostjs.wx4j.context.WxContextSource;
 import com.lostjs.wx4j.transporter.BasicWxTransporter;
 import com.lostjs.wx4j.transporter.WxTransporter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.TaskExecutor;
 
 /**
  * Created by pw on 03/10/2016.
@@ -31,24 +34,21 @@ public class WxClientConfiguration {
     }
 
     @Bean
-    public WxClient wxClient(WxTransporter wxTransporter) {
+    public WxContextSource wxContextSource(WxTransporter wxTransporter) {
+        return new QRCodeWxContextSource(wxTransporter);
+    }
+
+    @Bean
+    public WxClient wxClient(WxTransporter wxTransporter, WxContextSource wxContextSource, TaskExecutor taskExecutor) {
         BasicWxClient client = new BasicWxClient();
 
         client.setTransporter(wxTransporter);
-        try {
-            client.statusNotify();
-        } catch (RuntimeException e) {
-            wxTransporter.getContext().clear();
+        client.setContextSource(wxContextSource);
 
-            boolean success = new QRCodeWxContextSource(wxTransporter).initWxWebContext();
+        taskExecutor.execute(() -> {
+            client.syncCheckLoop();
+        });
 
-            if (!success) {
-                throw new RuntimeException("can't initialize wx context");
-            }
-            client.statusNotify();
-        }
-
-        client.startEventLoop();
         return client;
     }
 }
