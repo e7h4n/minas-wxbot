@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lostjs.wx4j.client.WxClient;
 import com.lostjs.wx4j.data.response.Contact;
 import com.lostjs.wx4j.data.response.GroupMember;
+import com.lostjs.wx4j.exception.InvalidResponseException;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,12 +13,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcOperations;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -58,12 +57,13 @@ public class ContactAddJob implements CommandLineRunner {
         Contact group = contacts.stream().filter(c -> c.getNickName().equals(groupName)).findAny().get();
         List<GroupMember> groupMembers = wxClient.getGroupMembers(group.getUserName());
 
+        int fib1 = 0;
+        int fib2 = 1;
         for (int i = 0; i < groupMembers.size(); i++) {
             LOG.info("process use {}/{}", i, groupMembers.size());
             GroupMember g = groupMembers.get(i);
             String nickName = g.getNickName();
             try {
-
                 boolean isFriend = contactUserNameSet.contains(g.getUserName());
                 if (isFriend) {
                     continue;
@@ -76,9 +76,29 @@ public class ContactAddJob implements CommandLineRunner {
 
                 LOG.info("add friend, nickName={}", nickName);
 
-                boolean success = wxClient.addContact(g.getUserName(), reason);
+                boolean success = false;
+                try {
+                    success = wxClient.addContact(g.getUserName(), reason);
+                } catch (InvalidResponseException e) {
+                    if (e.getRet() == 1205) {
+                        int sleepMinute = fib1 + fib2;
+                        LOG.info("add friend too fast, sleep {} minutes to retry", sleepMinute);
+                        try {
+                            Thread.sleep(TimeUnit.MINUTES.toMillis(sleepMinute));
+                        } catch (InterruptedException e1) {
+                            throw new RuntimeException(e1);
+                        }
+
+                        fib1 = fib2;
+                        fib2 = sleepMinute;
+                    } else {
+                        throw new RuntimeException(e);
+                    }
+                }
 
                 if (success) {
+                    fib1 = 0;
+                    fib2 = 1;
                     friendRequests.add(nickName);
 
                     try {
