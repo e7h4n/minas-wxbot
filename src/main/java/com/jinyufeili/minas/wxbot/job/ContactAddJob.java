@@ -1,22 +1,21 @@
 package com.jinyufeili.minas.wxbot.job;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lostjs.wx4j.client.WxClient;
 import com.lostjs.wx4j.data.response.Contact;
 import com.lostjs.wx4j.data.response.GroupMember;
 import com.lostjs.wx4j.exception.InvalidResponseException;
-import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcOperations;
 import org.springframework.stereotype.Component;
 
-import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -29,98 +28,100 @@ import java.util.stream.Collectors;
 @ConditionalOnProperty(value = "job.contactAdd.enabled")
 public class ContactAddJob implements CommandLineRunner {
 
+    public static final int TOO_FREQ_WAIT_MINUTE = 30;
+
     @Value("${job.contactAdd.targetGroupName}")
     private String groupName;
 
     @Value("${job.contactAdd.reason}")
     private String reason;
 
-    @Value("${job.contactAdd.cacheFile}")
-    private String cacheFile;
+    private int turn = 0;
 
     private Logger LOG = LoggerFactory.getLogger(this.getClass());
 
     @Autowired
     private WxClient wxClient;
 
+    @Autowired
+    private NamedParameterJdbcOperations db;
+
     public void run(String[] args) throws IOException {
-        File file = new File(cacheFile);
-        String fileContent = FileUtils.readFileToString(file);
-        ObjectMapper objectMapper = new ObjectMapper();
-        List<String> friendRequests = objectMapper.readValue(fileContent, new TypeReference<List<String>>() {
 
-        });
+        while (true) {
+            List<Contact> contacts = wxClient.getContacts();
+            Set<String> contactUserNameSet = contacts.stream().map(Contact::getUserName).collect(Collectors.toSet());
 
-        List<Contact> contacts = wxClient.getContacts();
-        Set<String> contactUserNameSet = contacts.stream().map(Contact::getUserName).collect(Collectors.toSet());
+            Contact group = contacts.stream().filter(c -> c.getNickName().equals(groupName)).findAny().get();
+            List<GroupMember> groupMembers = wxClient.getGroupMembers(group.getUserName());
 
-        Contact group = contacts.stream().filter(c -> c.getNickName().equals(groupName)).findAny().get();
-        List<GroupMember> groupMembers = wxClient.getGroupMembers(group.getUserName());
-
-        int fib1 = 0;
-        int fib2 = 1;
-        for (int i = 0; i < groupMembers.size(); i++) {
-            LOG.info("process use {}/{}", i, groupMembers.size());
-            GroupMember g = groupMembers.get(i);
-            String nickName = g.getNickName();
-            try {
-                boolean isFriend = contactUserNameSet.contains(g.getUserName());
+            for (int i = 0; i < groupMembers.size(); i++) {
+                LOG.info("process use {}/{}", i, groupMembers.size());
+                GroupMember groupMember = groupMembers.get(i);
+                boolean isFriend = contactUserNameSet.contains(groupMember.getUserName());
                 if (isFriend) {
                     continue;
                 }
 
-                if (friendRequests.stream().filter(f -> f.equals(nickName)).findAny().isPresent()) {
-                    LOG.info("ignore user {}, already send request", nickName);
+                boolean isAlreadySendRequest =
+                        db.queryForObject("select count(*) from wechat_contact_request where nickname = :nickname",
+                                Collections.singletonMap("nickname", groupMember.getNickName()), Integer.class) > turn;
+                if (isAlreadySendRequest) {
                     continue;
                 }
 
-                LOG.info("add friend, nickName={}", nickName);
-
-                boolean success = false;
-                while (true) {
-                    try {
-                        success = wxClient.addContact(g.getUserName(), reason);
-                    } catch (InvalidResponseException e) {
-                        if (e.getRet() == 1205) {
-                            int sleepMinute = fib1 + fib2;
-                            LOG.info("add friend too fast, sleep {} minutes to retry", sleepMinute);
-                            try {
-                                Thread.sleep(TimeUnit.MINUTES.toMillis(sleepMinute));
-                            } catch (InterruptedException e1) {
-                                throw new RuntimeException(e1);
-                            }
-
-                            fib1 = fib2;
-                            fib2 = sleepMinute;
-                            continue;
-                        } else {
-                            throw new RuntimeException(e);
-                        }
-                    }
-
-                    if (success) {
-                        fib1 = 0;
-                        fib2 = 1;
-                        friendRequests.add(nickName);
-
-                        try {
-                            FileUtils.writeStringToFile(file, objectMapper.writeValueAsString(friendRequests));
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-
-                        break;
-                    }
-                }
-
                 try {
-                    Thread.sleep(TimeUnit.MINUTES.toMillis(1));
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
+                    processUser(groupMember);
+                } catch (RuntimeException e) {
+                    LOG.error("encounter an error and skip user {}, {}", group.getNickName(), e.getMessage());
                 }
-            } catch (RuntimeException e) {
-                LOG.error("error when add friend " + nickName, e);
             }
+
+            turn += 1;
+        }
+    }
+
+    private void processUser(GroupMember groupMember) {
+        String nickName = groupMember.getNickName();
+        LOG.info("add friend, nickName={}", nickName);
+
+        boolean success = false;
+        while (!success) {
+            success = internalAddContact(groupMember);
+        }
+    }
+
+    private boolean internalAddContact(GroupMember groupMember) {
+        boolean success;
+
+        try {
+            success = wxClient.addContact(groupMember.getUserName(), reason);
+        } catch (InvalidResponseException e) {
+            if (e.getRet() == 1205) {
+                LOG.info("add friend too fast, sleep {} minutes to retry", TOO_FREQ_WAIT_MINUTE);
+                sleep(TimeUnit.MINUTES.toMillis(TOO_FREQ_WAIT_MINUTE));
+                return false;
+            } else {
+                throw new RuntimeException(e);
+            }
+        }
+
+        if (success) {
+            MapSqlParameterSource source = new MapSqlParameterSource();
+            source.addValue("nickname", groupMember.getNickName());
+            source.addValue("createdTime", System.currentTimeMillis());
+            db.update("insert into wechat_contact_request set nickname = :nickname, createdTime = :createdTime",
+                    source);
+        }
+
+        return true;
+    }
+
+    private void sleep(long duration) {
+        try {
+            Thread.sleep(duration);
+        } catch (InterruptedException e1) {
+            throw new RuntimeException(e1);
         }
     }
 }
