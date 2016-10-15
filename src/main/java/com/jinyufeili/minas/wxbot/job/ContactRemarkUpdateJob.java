@@ -7,14 +7,12 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.CommandLineRunner;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcOperations;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
@@ -22,8 +20,7 @@ import java.util.List;
  * Created by pw on 03/10/2016.
  */
 @Component
-@ConditionalOnProperty(value = "job.contactRemarkUpdate.enabled")
-public class ContactRemarkUpdateJob implements CommandLineRunner {
+public class ContactRemarkUpdateJob {
 
     private static final RowMapper<Resident> RESIDENT_ROW_MAPPER = ((rs, i) -> {
         Resident r = new Resident();
@@ -45,7 +42,8 @@ public class ContactRemarkUpdateJob implements CommandLineRunner {
     @Autowired
     private NamedParameterJdbcOperations db;
 
-    public void run(String[] args) throws IOException {
+    @Scheduled(cron = "0 0 * * * *")
+    public void run() {
         List<Contact> contacts = wxClient.getContacts();
 
         for (int i = 0; i < contacts.size(); i++) {
