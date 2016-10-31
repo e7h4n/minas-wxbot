@@ -42,7 +42,7 @@ public class ContactRemarkUpdateJob {
     @Autowired
     private NamedParameterJdbcOperations db;
 
-    @Scheduled(cron = "0 0 * * * *")
+    @Scheduled(cron = "0 */10 * * * *")
     public void run() {
         List<Contact> contacts = wxClient.getContacts();
 
