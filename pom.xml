@@ -47,7 +47,7 @@
 		<dependency>
 			<groupId>com.lostjs</groupId>
 			<artifactId>wx4j</artifactId>
-			<version>1.0.9</version>
+			<version>1.0.10</version>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.commons</groupId>
