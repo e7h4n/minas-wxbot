@@ -4,6 +4,8 @@ import com.lostjs.wx4j.client.WxClient;
 import com.lostjs.wx4j.data.response.Contact;
 import com.lostjs.wx4j.data.response.GroupMember;
 import com.lostjs.wx4j.exception.InvalidResponseException;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +14,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcOperations;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 
 import java.util.Collections;
 import java.util.List;
@@ -44,11 +47,10 @@ public class ContactAddJob {
     @Autowired
     private NamedParameterJdbcOperations db;
 
-    @Scheduled(cron = "0 1,3,4,7,11,18,29,47 8-20/2 * * *")
+    @Scheduled(cron = "0 1,3,4,7,11,18,29,47 8-20/2 */2 * *")
     public void run() {
         List<Contact> contacts = wxClient.getContacts();
         Set<String> contactUserNameSet = contacts.stream().map(Contact::getUserName).collect(Collectors.toSet());
-
         Contact group = contacts.stream().filter(c -> c.getNickName().equals(groupName)).findAny().get();
         List<GroupMember> groupMembers = wxClient.getGroupMembers(group.getUserName());
 
