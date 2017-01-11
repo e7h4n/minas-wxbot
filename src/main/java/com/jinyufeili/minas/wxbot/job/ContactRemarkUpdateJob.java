@@ -13,6 +13,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
+import javax.annotation.PostConstruct;
 import java.util.Collections;
 import java.util.List;
 
@@ -89,7 +90,11 @@ public class ContactRemarkUpdateJob {
                 }
 
                 if (!contact.getRemarkName().equals(remarkName)) {
-                    wxClient.updateRemarkName(contact.getUserName(), remarkName);
+                    try {
+                        wxClient.updateRemarkName(contact.getUserName(), remarkName);
+                    } catch (RuntimeException e) {
+                        LOG.error("failed to update remark name, contact=" + contact.getUserName() + ", remarkName=" + remarkName, e);
+                    }
                 }
             }
         }

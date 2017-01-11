@@ -47,7 +47,7 @@ public class ContactAddJob {
     @Autowired
     private NamedParameterJdbcOperations db;
 
-    @Scheduled(cron = "0 1,3,4,7,11,18,29,47 8-20/2 */2 * *")
+    @Scheduled(cron = "0 1,4,18,47 8-20/3 * * *")
     public void run() {
         List<Contact> contacts = wxClient.getContacts();
         Set<String> contactUserNameSet = contacts.stream().map(Contact::getUserName).collect(Collectors.toSet());
