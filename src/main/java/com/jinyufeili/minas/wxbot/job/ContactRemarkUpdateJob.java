@@ -94,7 +94,7 @@ public class ContactRemarkUpdateJob {
                     try {
                         wxClient.updateRemarkName(contact.getUserName(), remarkName);
                         LOG.info("update success");
-                        Thread.sleep(TimeUnit.SECONDS.toMillis(18));
+                        Thread.sleep(TimeUnit.SECONDS.toMillis(9));
                     } catch (Exception e) {
                         LOG.error("failed to update remark name, contact=" + contact.getUserName() + ", remarkName=" + remarkName, e);
                     }
