@@ -16,6 +16,7 @@ import org.springframework.util.CollectionUtils;
 import javax.annotation.PostConstruct;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Created by pw on 03/10/2016.
@@ -92,7 +93,9 @@ public class ContactRemarkUpdateJob {
                 if (!contact.getRemarkName().equals(remarkName)) {
                     try {
                         wxClient.updateRemarkName(contact.getUserName(), remarkName);
-                    } catch (RuntimeException e) {
+                        LOG.info("update success");
+                        Thread.sleep(TimeUnit.SECONDS.toMillis(18));
+                    } catch (Exception e) {
                         LOG.error("failed to update remark name, contact=" + contact.getUserName() + ", remarkName=" + remarkName, e);
                     }
                 }
