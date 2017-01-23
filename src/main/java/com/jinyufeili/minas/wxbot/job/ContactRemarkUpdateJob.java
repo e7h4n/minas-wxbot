@@ -3,6 +3,7 @@ package com.jinyufeili.minas.wxbot.job;
 import com.jinyufeili.minas.wxbot.data.Resident;
 import com.lostjs.wx4j.client.WxClient;
 import com.lostjs.wx4j.data.response.Contact;
+import com.lostjs.wx4j.utils.WxNickNameConverter;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,7 +45,8 @@ public class ContactRemarkUpdateJob {
     @Autowired
     private NamedParameterJdbcOperations db;
 
-    @Scheduled(cron = "0 */10 * * * *")
+    @Scheduled(cron = "0 */30 * * * *")
+    @PostConstruct
     public void run() {
         List<Contact> contacts = wxClient.getContacts();
 
@@ -94,7 +96,7 @@ public class ContactRemarkUpdateJob {
                     try {
                         wxClient.updateRemarkName(contact.getUserName(), remarkName);
                         LOG.info("update success");
-                        Thread.sleep(TimeUnit.SECONDS.toMillis(9));
+                        Thread.sleep(TimeUnit.SECONDS.toMillis(20));
                     } catch (Exception e) {
                         LOG.error("failed to update remark name, contact=" + contact.getUserName() + ", remarkName=" + remarkName, e);
                     }
