@@ -2,6 +2,7 @@ package com.jinyufeili.minas.wxbot.job;
 
 import com.jinyufeili.minas.wxbot.data.Resident;
 import com.lostjs.wx4j.client.WxClient;
+import com.lostjs.wx4j.context.WxContext;
 import com.lostjs.wx4j.data.response.Contact;
 import com.lostjs.wx4j.transporter.WxTransporter;
 import org.apache.commons.codec.digest.DigestUtils;
@@ -54,6 +55,9 @@ public class ContactRemarkUpdateJob {
     private WxClient wxClient;
 
     @Autowired
+    private WxContext wxContext;
+
+    @Autowired
     private WxTransporter wxTransporter;
 
     @Autowired
@@ -83,7 +87,7 @@ public class ContactRemarkUpdateJob {
             }
 
             if (residents.size() > 1) {
-                String webAvatarUrl = String.format("https://wx.qq.com%s&type=big", contact.getHeadImgUrl());
+                String webAvatarUrl = String.format("%s%s&type=big", wxContext.getBaseUrl(), contact.getHeadImgUrl().replace("https://wx.qq.com/cgi-bin/mmwebwx-bin", ""));
                 String avatar = getMD5FromUrl(webAvatarUrl);
                 residents = residents.stream().filter(r -> {
                     String residentAvatar = getMD5FromUrl(r.getAvatarId());
