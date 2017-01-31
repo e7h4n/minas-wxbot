@@ -6,6 +6,8 @@ import com.lostjs.wx4j.data.response.Contact;
 import com.mashape.unirest.http.HttpResponse;
 import com.mashape.unirest.http.Unirest;
 import com.mashape.unirest.http.exceptions.UnirestException;
+import com.mashape.unirest.request.GetRequest;
+import com.sun.jndi.toolkit.url.Uri;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -20,6 +22,10 @@ import org.springframework.util.CollectionUtils;
 import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.CookieStore;
+import java.net.HttpCookie;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -46,6 +52,9 @@ public class ContactRemarkUpdateJob {
     });
 
     private Logger LOG = LoggerFactory.getLogger(this.getClass());
+
+    @Autowired
+    private CookieStore cookieStore;
 
     @Autowired
     private WxClient wxClient;
@@ -130,12 +139,26 @@ public class ContactRemarkUpdateJob {
         }
     }
 
-    private String getMD5FromUrl(String webAvatarUrl) {
-        LOG.info("get avatar from: {}", webAvatarUrl);
+    private String getMD5FromUrl(String url) {
+        LOG.info("get avatar from: {}", url);
+        GetRequest request = Unirest.get(url);
+
+        List<HttpCookie> cookies;
+        try {
+            cookies = cookieStore.get(new URI(url));
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
+        if (!CollectionUtils.isEmpty(cookies)) {
+            String cookie = cookies.stream().map(c -> String.format("%s=%s", c.getName(), c.getValue())).collect(Collectors.joining("; "));
+
+            LOG.info("cookie: {}", cookie);
+            request.header("Cookie", cookie);
+        }
 
         HttpResponse<InputStream> webAvatar;
         try {
-            webAvatar = Unirest.get(webAvatarUrl).asBinary();
+            webAvatar = request.asBinary();
         } catch (UnirestException e) {
             throw new RuntimeException(e);
         }
