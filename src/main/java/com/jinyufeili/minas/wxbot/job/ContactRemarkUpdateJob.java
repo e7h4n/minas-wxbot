@@ -149,9 +149,10 @@ public class ContactRemarkUpdateJob {
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
-        
+
         LOG.info("uri domain: {}", uri.getHost());
         List<Cookie> cookies = cookieStore.getCookies();
+        LOG.info("cookie size: {}", cookies.size());
         cookies = cookies.stream().filter(c -> {
             LOG.info("cookie {} domain {}", c.getName(), c.getDomain());
             return c.getDomain().equals(uri.getHost());
