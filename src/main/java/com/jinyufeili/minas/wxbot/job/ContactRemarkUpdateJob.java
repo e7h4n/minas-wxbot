@@ -6,7 +6,9 @@ import com.lostjs.wx4j.data.response.Contact;
 import com.lostjs.wx4j.transporter.WxTransporter;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.http.cookie.Cookie;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -137,6 +139,10 @@ public class ContactRemarkUpdateJob {
     private String getMD5FromUrl(String url) {
         LOG.info("get avatar from: {}", url);
 
+        List<Cookie> cookies = wxTransporter.getContext().getCookies();
+        for (Cookie cookie : cookies) {
+            LOG.info("cookie {}={}", cookie.getName(), cookie.getValue());
+        }
         InputStream is = wxTransporter.getBinary(url);
 
         byte[] bytes;
@@ -145,6 +151,12 @@ public class ContactRemarkUpdateJob {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+
+        if (ArrayUtils.isEmpty(bytes)) {
+            LOG.warn("empty file: {}", url);
+            return StringUtils.EMPTY;
+        }
+
         String md5 = getMD5(bytes);
 
         File tempFile;
