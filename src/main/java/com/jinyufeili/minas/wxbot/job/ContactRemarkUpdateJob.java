@@ -90,6 +90,7 @@ public class ContactRemarkUpdateJob {
                     String residentAvatar = getMD5FromUrl(r.getAvatarId());
                     return avatar.equals(residentAvatar);
                 }).collect(Collectors.toList());
+                LOG.info("利用头像去除重复后， resident.size={}", residents.size());
             }
 
             Resident resident;
