@@ -5,6 +5,7 @@ import com.lostjs.wx4j.client.WxClient;
 import com.lostjs.wx4j.data.response.Contact;
 import com.lostjs.wx4j.transporter.WxTransporter;
 import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,8 +15,10 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcOperations;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StreamUtils;
 
 import javax.annotation.PostConstruct;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
@@ -136,14 +139,33 @@ public class ContactRemarkUpdateJob {
 
         InputStream is = wxTransporter.getBinary(url);
 
-        return getMD5(is);
-    }
-
-    private String getMD5(InputStream inputStream) {
+        byte[] bytes;
         try {
-            return DigestUtils.md5Hex(inputStream);
+            bytes = StreamUtils.copyToByteArray(is);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+        String md5 = getMD5(bytes);
+
+        File tempFile;
+        try {
+            tempFile = File.createTempFile(md5, ".jpg");
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        try {
+            FileUtils.writeByteArrayToFile(tempFile, bytes);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        LOG.info("write avatar to {}", tempFile.getAbsolutePath());
+        return md5;
+    }
+
+    private String getMD5(byte[] inputStream) {
+        return DigestUtils.md5Hex(inputStream);
+
     }
 }
