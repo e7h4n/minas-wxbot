@@ -17,6 +17,8 @@ public class Resident {
 
     private int houseNumber;
 
+    private String avatarId;
+
     public int getUserId() {
         return userId;
     }
@@ -74,6 +76,15 @@ public class Resident {
                 ", building=" + building +
                 ", unit=" + unit +
                 ", houseNumber=" + houseNumber +
+                ", avatarId='" + avatarId + '\'' +
                 '}';
+    }
+
+    public void setAvatarId(String avatarId) {
+        this.avatarId = avatarId;
+    }
+
+    public String getAvatarId() {
+        return avatarId;
     }
 }

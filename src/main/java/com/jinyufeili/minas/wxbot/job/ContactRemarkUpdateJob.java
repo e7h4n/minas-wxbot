@@ -18,6 +18,7 @@ import javax.annotation.PostConstruct;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * Created by pw on 03/10/2016.
@@ -34,6 +35,8 @@ public class ContactRemarkUpdateJob {
         r.setBuilding(rs.getInt("building"));
         r.setUnit(rs.getInt("unit"));
         r.setHouseNumber(rs.getInt("house_number"));
+        r.setAvatarId(rs.getString("avatarId"));
+
         return r;
     });
 
@@ -51,55 +54,77 @@ public class ContactRemarkUpdateJob {
         List<Contact> contacts = wxClient.getContacts();
 
         for (int i = 0; i < contacts.size(); i++) {
-            LOG.info("process use {}/{}", i, contacts.size());
             Contact contact = contacts.get(i);
+            LOG.info("process user {}/{}, name={}, avatarId={}", i, contacts.size(), contact.getNickName(), contact.getHeadImgUrl());
             String nickName = contact.getNickName();
             List<Resident> residents = db.query(
-                    "select wu.id as userId, r.name, rm.region, rm.building, rm.unit, rm.house_number" +
-                            " from wechat_wechatuser wu" + " join auth_user au on wu.user_id = au.id" +
+                    "select wu.id as userId, r.name, rm.region, rm.building, rm.unit, rm.house_number, wu.avatarId" +
+                            " from wechat_wechatuser wu" +
+                            " join auth_user au on wu.user_id = au.id" +
                             " left join crm_resident r on r.wechat_user_id = wu.id" +
-                            " left join crm_room rm on rm.id = r.room_id" + " where au.first_name = :name;",
+                            " left join crm_room rm on rm.id = r.room_id" +
+                            " where au.first_name = :name;",
                     Collections.singletonMap("name", nickName), RESIDENT_ROW_MAPPER);
+
+            if (residents == null) {
+                LOG.info("stranger, nickName={}", nickName);
+                continue;
+            }
+
+            if (residents.size() > 1) {
+                residents = residents.stream().filter(r -> {
+                    if (StringUtils.isBlank(r.getAvatarId()) && StringUtils.isBlank(contact.getHeadImgUrl())) {
+                        return true;
+                    }
+
+                    if (StringUtils.isBlank(r.getAvatarId()) || StringUtils.isBlank(contact.getHeadImgUrl())) {
+                        return false;
+                    }
+
+                    return contact.getHeadImgUrl().equals(r.getAvatarId());
+                }).collect(Collectors.toList());
+            }
 
             Resident resident;
             if (CollectionUtils.isEmpty(residents)) {
                 LOG.info("stranger, nickName={}", nickName);
+                continue;
+            }
+
+            String remarkName;
+            if (residents.size() > 1) {
+                LOG.warn("重名用户 {}: {}", nickName, residents);
+                remarkName = "[D]" + nickName;
             } else {
-                String remarkName;
-                if (residents.size() > 1) {
-                    LOG.warn("重名用户 {}: {}", nickName, residents);
-                    remarkName = "[D]" + nickName;
-                } else {
 
-                    resident = residents.get(0);
+                resident = residents.get(0);
 
-                    if (StringUtils.isNotBlank(resident.getName())) {
-                        LOG.info("userId={}, nickName={}, resident={}", resident.getUserId(), nickName,
-                                resident.getName());
+                if (StringUtils.isNotBlank(resident.getName())) {
+                    LOG.info("userId={}, nickName={}, resident={}", resident.getUserId(), nickName,
+                            resident.getName());
 
-                        String houseNumber;
-                        if (resident.getRegion() == 1) {
-                            houseNumber = String.format("1-%d-%d", resident.getBuilding(), resident.getHouseNumber());
-                        } else {
-                            houseNumber = String.format("2-%d-%d-%d", resident.getBuilding(), resident.getUnit(),
-                                    resident.getHouseNumber());
-                        }
-
-                        remarkName = String.format("✅ %s %s", houseNumber, resident.getName());
+                    String houseNumber;
+                    if (resident.getRegion() == 1) {
+                        houseNumber = String.format("1-%d-%d", resident.getBuilding(), resident.getHouseNumber());
                     } else {
-                        remarkName = String.format("❓ %s", nickName);
-                        LOG.info("unverified user, userId={}, nickName={}", resident.getUserId(), nickName);
+                        houseNumber = String.format("2-%d-%d-%d", resident.getBuilding(), resident.getUnit(),
+                                resident.getHouseNumber());
                     }
-                }
 
-                if (!contact.getRemarkName().equals(remarkName)) {
-                    try {
-                        wxClient.updateRemarkName(contact.getUserName(), remarkName);
-                        LOG.info("update success");
-                        Thread.sleep(TimeUnit.SECONDS.toMillis(20));
-                    } catch (Exception e) {
-                        LOG.error("failed to update remark name, contact=" + contact.getUserName() + ", remarkName=" + remarkName, e);
-                    }
+                    remarkName = String.format("✅ %s %s", houseNumber, resident.getName());
+                } else {
+                    remarkName = String.format("❓ %s", nickName);
+                    LOG.info("unverified user, userId={}, nickName={}", resident.getUserId(), nickName);
+                }
+            }
+
+            if (!contact.getRemarkName().equals(remarkName)) {
+                try {
+                    wxClient.updateRemarkName(contact.getUserName(), remarkName);
+                    LOG.info("update success");
+                    Thread.sleep(TimeUnit.SECONDS.toMillis(20));
+                } catch (Exception e) {
+                    LOG.error("failed to update remark name, contact=" + contact.getUserName() + ", remarkName=" + remarkName, e);
                 }
             }
         }
