@@ -7,9 +7,10 @@ import com.mashape.unirest.http.HttpResponse;
 import com.mashape.unirest.http.Unirest;
 import com.mashape.unirest.http.exceptions.UnirestException;
 import com.mashape.unirest.request.GetRequest;
-import com.sun.jndi.toolkit.url.Uri;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.http.client.CookieStore;
+import org.apache.http.cookie.Cookie;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,7 +23,6 @@ import org.springframework.util.CollectionUtils;
 import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.CookieStore;
 import java.net.HttpCookie;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -143,14 +143,23 @@ public class ContactRemarkUpdateJob {
         LOG.info("get avatar from: {}", url);
         GetRequest request = Unirest.get(url);
 
-        List<HttpCookie> cookies;
+        URI uri;
         try {
-            cookies = cookieStore.get(new URI(url));
+            uri = new URI(url);
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
+        
+        LOG.info("uri domain: {}", uri.getHost());
+        List<Cookie> cookies = cookieStore.getCookies();
+        cookies = cookies.stream().filter(c -> {
+            LOG.info("cookie {} domain {}", c.getName(), c.getDomain());
+            return c.getDomain().equals(uri.getHost());
+        }).collect(Collectors.toList());
+
         if (!CollectionUtils.isEmpty(cookies)) {
-            String cookie = cookies.stream().map(c -> String.format("%s=%s", c.getName(), c.getValue())).collect(Collectors.joining("; "));
+            String cookie = cookies.stream().map(c -> String.format("%s=%s", c.getName(), c.getValue()))
+                    .collect(Collectors.joining("; "));
 
             LOG.info("cookie: {}", cookie);
             request.header("Cookie", cookie);
