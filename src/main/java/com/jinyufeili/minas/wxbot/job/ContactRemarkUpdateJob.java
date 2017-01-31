@@ -3,7 +3,10 @@ package com.jinyufeili.minas.wxbot.job;
 import com.jinyufeili.minas.wxbot.data.Resident;
 import com.lostjs.wx4j.client.WxClient;
 import com.lostjs.wx4j.data.response.Contact;
-import com.lostjs.wx4j.utils.WxNickNameConverter;
+import com.mashape.unirest.http.HttpResponse;
+import com.mashape.unirest.http.Unirest;
+import com.mashape.unirest.http.exceptions.UnirestException;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,6 +18,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
 import javax.annotation.PostConstruct;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -55,7 +60,7 @@ public class ContactRemarkUpdateJob {
 
         for (int i = 0; i < contacts.size(); i++) {
             Contact contact = contacts.get(i);
-            LOG.info("process user {}/{}, name={}, avatarId={}", i, contacts.size(), contact.getNickName(), contact.getHeadImgUrl());
+            LOG.info("process user {}/{}, name={}", i, contacts.size(), contact.getNickName());
             String nickName = contact.getNickName();
             List<Resident> residents = db.query(
                     "select wu.id as userId, r.name, rm.region, rm.building, rm.unit, rm.house_number, wu.avatarId" +
@@ -72,16 +77,11 @@ public class ContactRemarkUpdateJob {
             }
 
             if (residents.size() > 1) {
+                String webAvatarUrl = String.format("https://wx.qq.com%s&type=big", contact.getHeadImgUrl());
+                String avatar = getMD5FromUrl(webAvatarUrl);
                 residents = residents.stream().filter(r -> {
-                    if (StringUtils.isBlank(r.getAvatarId()) && StringUtils.isBlank(contact.getHeadImgUrl())) {
-                        return true;
-                    }
-
-                    if (StringUtils.isBlank(r.getAvatarId()) || StringUtils.isBlank(contact.getHeadImgUrl())) {
-                        return false;
-                    }
-
-                    return contact.getHeadImgUrl().equals(r.getAvatarId());
+                    String residentAvatar = getMD5FromUrl(r.getAvatarId());
+                    return avatar.equals(residentAvatar);
                 }).collect(Collectors.toList());
             }
 
@@ -127,6 +127,27 @@ public class ContactRemarkUpdateJob {
                     LOG.error("failed to update remark name, contact=" + contact.getUserName() + ", remarkName=" + remarkName, e);
                 }
             }
+        }
+    }
+
+    private String getMD5FromUrl(String webAvatarUrl) {
+        LOG.info("get avatar from: {}", webAvatarUrl);
+
+        HttpResponse<InputStream> webAvatar;
+        try {
+            webAvatar = Unirest.get(webAvatarUrl).asBinary();
+        } catch (UnirestException e) {
+            throw new RuntimeException(e);
+        }
+
+        return getMD5(webAvatar.getBody());
+    }
+
+    private String getMD5(InputStream inputStream) {
+        try {
+            return DigestUtils.md5Hex(inputStream);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 }
