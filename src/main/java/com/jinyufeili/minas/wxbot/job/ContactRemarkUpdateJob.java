@@ -83,6 +83,7 @@ public class ContactRemarkUpdateJob {
             }
 
             if (residents.size() > 1) {
+                LOG.info("潜在的重名问题，尝试拉取头像, nickname={}", contact.getNickName());
                 String webAvatarUrl = String.format("%s&type=big", contact.getHeadImgUrl().replace("/cgi-bin/mmwebwx-bin", ""));
                 String avatar = getMD5FromUrl(webAvatarUrl);
                 residents = residents.stream().filter(r -> {
@@ -137,47 +138,12 @@ public class ContactRemarkUpdateJob {
     }
 
     private String getMD5FromUrl(String url) {
-        LOG.info("get avatar from: {}", url);
-
-        List<Cookie> cookies = wxTransporter.getContext().getCookies();
-        for (Cookie cookie : cookies) {
-            LOG.info("cookie, name={}, value={}, domain={}", cookie.getName(), cookie.getValue(), cookie.getDomain());
-        }
         InputStream is = wxTransporter.getBinary(url);
 
-        byte[] bytes;
         try {
-            bytes = StreamUtils.copyToByteArray(is);
+            return DigestUtils.md5Hex(is);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-
-        if (ArrayUtils.isEmpty(bytes)) {
-            LOG.warn("empty file: {}", url);
-            return StringUtils.EMPTY;
-        }
-
-        String md5 = getMD5(bytes);
-
-        File tempFile;
-        try {
-            tempFile = File.createTempFile(md5, ".jpg");
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-        try {
-            FileUtils.writeByteArrayToFile(tempFile, bytes);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-        LOG.info("write avatar to {}", tempFile.getAbsolutePath());
-        return md5;
-    }
-
-    private String getMD5(byte[] inputStream) {
-        return DigestUtils.md5Hex(inputStream);
-
     }
 }
