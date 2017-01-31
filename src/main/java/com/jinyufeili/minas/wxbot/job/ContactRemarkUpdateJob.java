@@ -3,6 +3,7 @@ package com.jinyufeili.minas.wxbot.job;
 import com.jinyufeili.minas.wxbot.data.Resident;
 import com.lostjs.wx4j.client.WxClient;
 import com.lostjs.wx4j.data.response.Contact;
+import com.lostjs.wx4j.transporter.WxTransporter;
 import com.mashape.unirest.http.HttpResponse;
 import com.mashape.unirest.http.Unirest;
 import com.mashape.unirest.http.exceptions.UnirestException;
@@ -54,10 +55,10 @@ public class ContactRemarkUpdateJob {
     private Logger LOG = LoggerFactory.getLogger(this.getClass());
 
     @Autowired
-    private CookieStore cookieStore;
+    private WxClient wxClient;
 
     @Autowired
-    private WxClient wxClient;
+    private WxTransporter wxTransporter;
 
     @Autowired
     private NamedParameterJdbcOperations db;
@@ -141,39 +142,10 @@ public class ContactRemarkUpdateJob {
 
     private String getMD5FromUrl(String url) {
         LOG.info("get avatar from: {}", url);
-        GetRequest request = Unirest.get(url);
 
-        URI uri;
-        try {
-            uri = new URI(url);
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
+        InputStream is = wxTransporter.getBinary(url);
 
-        LOG.info("uri domain: {}", uri.getHost());
-        List<Cookie> cookies = cookieStore.getCookies();
-        LOG.info("cookie size: {}", cookies.size());
-        cookies = cookies.stream().filter(c -> {
-            LOG.info("cookie {} domain {}", c.getName(), c.getDomain());
-            return c.getDomain().equals(uri.getHost());
-        }).collect(Collectors.toList());
-
-        if (!CollectionUtils.isEmpty(cookies)) {
-            String cookie = cookies.stream().map(c -> String.format("%s=%s", c.getName(), c.getValue()))
-                    .collect(Collectors.joining("; "));
-
-            LOG.info("cookie: {}", cookie);
-            request.header("Cookie", cookie);
-        }
-
-        HttpResponse<InputStream> webAvatar;
-        try {
-            webAvatar = request.asBinary();
-        } catch (UnirestException e) {
-            throw new RuntimeException(e);
-        }
-
-        return getMD5(webAvatar.getBody());
+        return getMD5(is);
     }
 
     private String getMD5(InputStream inputStream) {
