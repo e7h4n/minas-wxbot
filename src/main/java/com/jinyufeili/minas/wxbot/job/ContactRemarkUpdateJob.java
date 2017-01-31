@@ -140,9 +140,7 @@ public class ContactRemarkUpdateJob {
         LOG.info("get avatar from: {}", url);
 
         List<Cookie> cookies = wxTransporter.getContext().getCookies();
-        for (Cookie cookie : cookies) {
-            LOG.info("cookie {}={}", cookie.getName(), cookie.getValue());
-        }
+        LOG.info("cookie size: {}", cookies.size());
         InputStream is = wxTransporter.getBinary(url);
 
         byte[] bytes;
